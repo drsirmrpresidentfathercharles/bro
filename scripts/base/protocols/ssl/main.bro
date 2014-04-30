@@ -16,9 +16,9 @@ export {
 		## The connection's 4-tuple of endpoint addresses/ports.
 		id:               conn_id          &log;
 		## SSL/TLS version that the server offered.
-		version:          string           &log &optional;
+		version:          count           &log &optional;
 		## SSL/TLS cipher suite that the server chose.
-		cipher:           string           &log &optional;
+		cipher:           count           &log &optional;
 		## Value of the Server Name Indicator SSL/TLS extension.  It
 		## indicates the server name that the client was requesting.
 		server_name:      string           &log &optional;
@@ -155,8 +155,8 @@ event ssl_server_hello(c: connection, version: count, possible_ts: time, server_
 	{
 	set_session(c);
 
-	c$ssl$version = version_strings[version];
-	c$ssl$cipher = cipher_desc[cipher];
+	c$ssl$version = version;
+	c$ssl$cipher = cipher;
 	}
 
 event ssl_extension_server_name(c: connection, is_orig: bool, names: string_vec) &priority=5

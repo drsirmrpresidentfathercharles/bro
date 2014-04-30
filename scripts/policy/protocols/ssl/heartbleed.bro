@@ -31,6 +31,8 @@ redef record SSL::Info += {
 	clear_responder_heartbeats: count &default=0 &log;
 	originator_heartbeats: count &default=0 &log;
 	responder_heartbeats: count &default=0 &log;
+	originator_heartbeat_bytes: count &default=0 &log;
+	responder_heartbeat_bytes: count &default=0 &log;
 
 	heartbleed_detected: bool &default=F;
 
@@ -52,9 +54,15 @@ const	V2_SERVER_HELLO = 304;
 event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type: count, payload_length: count, payload: string)
 	{
 	if ( is_orig )
+		{
 		++c$ssl$clear_originator_heartbeats;
+		c$ssl$originator_heartbeat_bytes += payload_length;
+		}
 	else
+		{
 		++c$ssl$clear_responder_heartbeats;
+		c$ssl$responder_heartbeat_bytes += payload_length;
+		}
 
 	if ( heartbeat_type == 1 )
 		{
@@ -100,9 +108,15 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 	{
 	if ( is_orig )
+		{
 		++c$ssl$originator_heartbeats;
+		c$ssl$originator_heartbeat_bytes += length;
+		}
 	else
+		{
 		++c$ssl$responder_heartbeats;
+		c$ssl$responder_heartbeat_bytes += length;
+		}
 
 	if ( c$ssl$enc_appdata_packages == 0 )
 			NOTICE([$note=SSL_Heartbeat_Scan,
