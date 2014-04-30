@@ -15,7 +15,8 @@ export {
 		## Indicates we saw heartbeat requests with odd length. Probably an attack.
 		SSL_Heartbeat_Odd_Length,
 		## Indicates we saw many heartbeat requests without an reply. Might be an attack.
-		SSL_Heartbeat_Many_Requests
+		SSL_Heartbeat_Many_Requests,
+		SSL_Heartbeat_Scan
 	};
 }
 
@@ -70,7 +71,7 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 			}
 		else if ( is_orig && length < 19 )
 			{
-			NOTICE([$note=SSL_Heartbeat_Odd_Length,
+			NOTICE([$note=SSL_Heartbeat_Scan,
 				$msg=fmt("Heartbeat message smaller than minimum length required by protocol. Probable scan. Message length: %d. Payload length: %d", length, payload_length),
 				$conn=c,
 				$n=length,
@@ -88,6 +89,12 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 				]);
 		}
 
+		NOTICE([$note=SSL_Heartbeat_Scan,
+			$msg=fmt("Heartbeat message before encryption. Message length: %d, Payload length: %d", length, payload_length),
+			$conn=c,
+			$identifier=c$uid
+			]);
+
 	}
 
 event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
@@ -98,14 +105,14 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 		++c$ssl$responder_heartbeats;
 
 	if ( c$ssl$enc_appdata_packages == 0 )
-			NOTICE([$note=SSL_Heartbeat_Attack,
+			NOTICE([$note=SSL_Heartbeat_Scan,
 				$msg=fmt("Seeing heartbeat request in connection before ciphertext was seen. Probable attack or scan. Length: %d, is_orig: %d", length, is_orig),
 				$conn=c,
 				$n=length,
 				$identifier=fmt("%s%s", c$uid, "early")
 				]);
 	else if ( network_time() - c$start_time < 1min )
-			NOTICE([$note=SSL_Heartbeat_Attack,
+			NOTICE([$note=SSL_Heartbeat_Scan,
 				$msg=fmt("Seeing heartbeat request in connection within first minute. Possible attack or scan. Length: %d, is_orig: %d", length, is_orig),
 				$conn=c,
 				$n=length,
