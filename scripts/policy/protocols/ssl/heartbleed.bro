@@ -5,6 +5,7 @@
 
 module Heartbleed;
 
+
 export {
 	redef enum Notice::Type += {
 		## Indicates that a host performing a heartbleed attack.
@@ -25,14 +26,35 @@ redef SSL::disable_analyzer_after_detection=F;
 redef record SSL::Info += {
 	last_originator_heartbeat_request_size: count &optional;
 	last_responder_heartbeat_request_size: count &optional;
-	originator_heartbeats: count &default=0;
-	responder_heartbeats: count &default=0;
+	clear_originator_heartbeats: count &default=0 &log;
+	clear_responder_heartbeats: count &default=0 &log;
+	originator_heartbeats: count &default=0 &log;
+	responder_heartbeats: count &default=0 &log;
 
 	heartbleed_detected: bool &default=F;
+
+	enc_appdata_packages: count &default=0;
+	enc_appdata_bytes: count &default=0;
 	};
+
+# content types:
+const	CHANGE_CIPHER_SPEC = 20;
+const	ALERT = 21;
+const	HANDSHAKE = 22;
+const	APPLICATION_DATA = 23;
+const	HEARTBEAT = 24;
+const	V2_ERROR = 300;
+const	V2_CLIENT_HELLO = 301;
+const	V2_CLIENT_MASTER_KEY = 302;
+const	V2_SERVER_HELLO = 304;
 
 event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type: count, payload_length: count, payload: string)
 	{
+	if ( is_orig )
+		++c$ssl$clear_originator_heartbeats;
+	else
+		++c$ssl$clear_responder_heartbeats;
+
 	if ( heartbeat_type == 1 )
 		{
 		local checklength: count = (length<(3+16)) ? length : (length - 3 - 16);
@@ -46,6 +68,15 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 				$identifier=cat(c$uid, length, payload_length)
 				]);
 			}
+		else if ( is_orig && length < 19 )
+			{
+			NOTICE([$note=SSL_Heartbeat_Odd_Length,
+				$msg=fmt("Heartbeat message smaller than minimum length required by protocol. Probable scan. Message length: %d. Payload length: %d", length, payload_length),
+				$conn=c,
+				$n=length,
+				$identifier=cat(c$uid, length)
+				]);
+			}
 		}
 
 	if ( heartbeat_type == 2 && c$ssl$heartbleed_detected )
@@ -56,6 +87,7 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 				$identifier=c$uid
 				]);
 		}
+
 	}
 
 event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
@@ -64,6 +96,21 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 		++c$ssl$originator_heartbeats;
 	else
 		++c$ssl$responder_heartbeats;
+
+	if ( c$ssl$enc_appdata_packages == 0 )
+			NOTICE([$note=SSL_Heartbeat_Attack,
+				$msg=fmt("Seeing heartbeat request in connection before ciphertext was seen. Probable attack or scan. Length: %d, is_orig: %d", length, is_orig),
+				$conn=c,
+				$n=length,
+				$identifier=fmt("%s%s", c$uid, "early")
+				]);
+	else if ( network_time() - c$start_time < 1min )
+			NOTICE([$note=SSL_Heartbeat_Attack,
+				$msg=fmt("Seeing heartbeat request in connection within first minute. Possible attack or scan. Length: %d, is_orig: %d", length, is_orig),
+				$conn=c,
+				$n=length,
+				$identifier=fmt("%s%s", c$uid, "early")
+				]);
 
 	if ( c$ssl$originator_heartbeats > c$ssl$responder_heartbeats + 3 )
 			NOTICE([$note=SSL_Heartbeat_Many_Requests,
@@ -117,5 +164,16 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 
 		if ( c$ssl?$last_originator_heartbeat_request_size )
 			delete c$ssl$last_originator_heartbeat_request_size;
+		}
+	}
+
+event ssl_encrypted_data(c: connection, content_type: count, is_orig: bool, length: count)
+	{
+	if ( content_type == HEARTBEAT )
+		event ssl_encrypted_heartbeat(c, is_orig, length);
+	else if ( content_type == APPLICATION_DATA )
+		{
+		++c$ssl$enc_appdata_packages;
+		c$ssl$enc_appdata_bytes += length;
 		}
 	}

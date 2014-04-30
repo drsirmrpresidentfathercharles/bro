@@ -186,7 +186,7 @@ event ssl_established(c: connection) &priority=7
 
 event ssl_established(c: connection) &priority=-5
 	{
-	finish(c, T);
+	#finish(c, T);
 	}
 
 event connection_state_remove(c: connection) &priority=-5
