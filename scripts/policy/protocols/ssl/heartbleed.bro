@@ -227,7 +227,6 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 					$n=length,
 					$identifier=fmt("%s-weak-cipher%d", c$uid, length)
 					]);
-				print "yes";
 				}
 
 			break;
