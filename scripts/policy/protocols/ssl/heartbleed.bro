@@ -53,6 +53,8 @@ const	V2_SERVER_HELLO = 304;
 
 event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type: count, payload_length: count, payload: string)
 	{
+	local duration = network_time() - c$start_time;
+
 	if ( is_orig )
 		{
 		++c$ssl$clear_originator_heartbeats;
@@ -72,7 +74,7 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 			{
 			c$ssl$heartbleed_detected = T;
 			NOTICE([$note=SSL_Heartbeat_Attack,
-				$msg=fmt("An TLS heartbleed attack was detected! Record length %d, payload length %d", length, payload_length),
+				$msg=fmt("An TLS heartbleed attack was detected! Record length %d. Payload length %d. Time: %f", length, payload_length, duration),
 				$conn=c,
 				$identifier=cat(c$uid, length, payload_length)
 				]);
@@ -80,7 +82,7 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 		else if ( is_orig && length < 19 )
 			{
 			NOTICE([$note=SSL_Heartbeat_Scan,
-				$msg=fmt("Heartbeat message smaller than minimum length required by protocol. Probable scan. Message length: %d. Payload length: %d", length, payload_length),
+				$msg=fmt("Heartbeat message smaller than minimum length required by protocol. Probable scan. Message length: %d. Payload length: %d. Time: %f", length, payload_length, duration),
 				$conn=c,
 				$n=length,
 				$identifier=cat(c$uid, length)
@@ -91,14 +93,14 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 	if ( heartbeat_type == 2 && c$ssl$heartbleed_detected )
 		{
 			NOTICE([$note=SSL_Heartbeat_Attack_Success,
-				$msg=fmt("An TLS heartbleed attack detected before was probably exploited. Transmitted payload length in first packet: %d", payload_length),
+				$msg=fmt("An TLS heartbleed attack detected before was probably exploited. Transmitted payload length in first packet: %d. Time: %f", payload_length, duration),
 				$conn=c,
 				$identifier=c$uid
 				]);
 		}
 
 		NOTICE([$note=SSL_Heartbeat_Scan,
-			$msg=fmt("Heartbeat message before encryption. Message length: %d, Payload length: %d", length, payload_length),
+			$msg=fmt("Heartbeat message before encryption. Message length: %d. Payload length: %d. Time: %f", length, payload_length, duration),
 			$conn=c,
 			$identifier=c$uid
 			]);
@@ -118,16 +120,18 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 		c$ssl$responder_heartbeat_bytes += length;
 		}
 
+	local duration = network_time() - c$start_time;
+
 	if ( c$ssl$enc_appdata_packages == 0 )
 			NOTICE([$note=SSL_Heartbeat_Scan,
-				$msg=fmt("Seeing heartbeat request in connection before ciphertext was seen. Probable attack or scan. Length: %d, is_orig: %d", length, is_orig),
+				$msg=fmt("Seeing heartbeat request in connection before ciphertext was seen. Probable attack or scan. Length: %d, is_orig: %d. Time: %f", length, is_orig, duration),
 				$conn=c,
 				$n=length,
 				$identifier=fmt("%s%s", c$uid, "early")
 				]);
-	else if ( network_time() - c$start_time < 1min )
+	else if ( duration < 1min )
 			NOTICE([$note=SSL_Heartbeat_Scan,
-				$msg=fmt("Seeing heartbeat request in connection within first minute. Possible attack or scan. Length: %d, is_orig: %d", length, is_orig),
+				$msg=fmt("Seeing heartbeat request in connection within first minute. Possible attack or scan. Length: %d, is_orig: %d. Time: %f", length, is_orig, duration),
 				$conn=c,
 				$n=length,
 				$identifier=fmt("%s%s", c$uid, "early")
@@ -135,7 +139,7 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 
 	if ( c$ssl$originator_heartbeats > c$ssl$responder_heartbeats + 3 )
 			NOTICE([$note=SSL_Heartbeat_Many_Requests,
-				$msg=fmt("Seeing more than 3 heartbeat requests without replies from server. Possible attack. Client count: %d, server count: %d", c$ssl$originator_heartbeats, c$ssl$responder_heartbeats),
+				$msg=fmt("Seeing more than 3 heartbeat requests without replies from server. Possible attack. Client count: %d, server count: %d. Time: %f", c$ssl$originator_heartbeats, c$ssl$responder_heartbeats, duration),
 				$conn=c,
 				$n=(c$ssl$originator_heartbeats-c$ssl$responder_heartbeats),
 				$identifier=fmt("%s%d", c$uid, c$ssl$responder_heartbeats/1000) # re-throw every 1000 heartbeats
@@ -143,7 +147,7 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 
 	if ( c$ssl$responder_heartbeats > c$ssl$originator_heartbeats + 3 )
 			NOTICE([$note=SSL_Heartbeat_Many_Requests,
-				$msg=fmt("Server is sending more heartbleed responsed than requests were seen. Possible attack. Client count: %d, server count: %d", c$ssl$originator_heartbeats, c$ssl$responder_heartbeats),
+				$msg=fmt("Server is sending more heartbleed responsed than requests were seen. Possible attack. Client count: %d, server count: %d. Time: %f", c$ssl$originator_heartbeats, c$ssl$responder_heartbeats, duration),
 				$conn=c,
 				$n=(c$ssl$originator_heartbeats-c$ssl$responder_heartbeats),
 				$identifier=fmt("%s%d", c$uid, c$ssl$responder_heartbeats/1000) # re-throw every 1000 heartbeats
@@ -151,7 +155,7 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 
 	if ( is_orig && length < 19 )
 			NOTICE([$note=SSL_Heartbeat_Odd_Length,
-				$msg=fmt("Heartbeat message smaller than minimum required length. Probable attack. Message length: %d", length),
+				$msg=fmt("Heartbeat message smaller than minimum required length. Probable attack. Message length: %d. Time: %f", length, duration),
 				$conn=c,
 				$n=length,
 				$identifier=cat(c$uid, length)
@@ -173,8 +177,8 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 		if ( c$ssl?$last_originator_heartbeat_request_size && c$ssl$last_originator_heartbeat_request_size < length )
 			{
 			NOTICE([$note=SSL_Heartbeat_Attack_Success,
-				$msg=fmt("An Encrypted TLS heartbleed attack was probably detected! First packet client record length %d, first packet server record length %d",
-					c$ssl$last_originator_heartbeat_request_size, length),
+				$msg=fmt("An Encrypted TLS heartbleed attack was probably detected! First packet client record length %d, first packet server record length %d. Time: %f",
+					c$ssl$last_originator_heartbeat_request_size, length, duration),
 				$conn=c,
 				$identifier=c$uid # only throw once per connection
 				]);
