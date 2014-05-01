@@ -94,8 +94,13 @@ event bro_init()
 	min_lengths[|min_lengths|] = [$cipher=/_RC2_CBC_40_MD5$/, $min_length=40];
 	}
 
+
 event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type: count, payload_length: count, payload: string)
 	{
+	# in this case, we have not even seen a client hello yet. This is extremely probably just a misidentification.
+	if ( ! c?$ssl )
+		return;
+
 	local duration = network_time() - c$start_time;
 
 	if ( is_orig )
@@ -116,7 +121,7 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 		if ( payload_length > checklength )
 			{
 			c$ssl$heartbleed_detected = T;
-			NOTICE([$note=SSL_Heartbeat_Attack,
+			NOTICE([$note=Heartbleed::SSL_Heartbeat_Attack,
 				$msg=fmt("An TLS heartbleed attack was detected! Record length %d. Payload length %d. Time: %f", length, payload_length, duration),
 				$conn=c,
 				$identifier=cat(c$uid, length, payload_length)
@@ -124,7 +129,7 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 			}
 		else if ( is_orig && length < 19 )
 			{
-			NOTICE([$note=SSL_Heartbeat_Scan,
+			NOTICE([$note=Heartbleed::SSL_Heartbeat_Scan,
 				$msg=fmt("Heartbeat message smaller than minimum length required by protocol. Probable scan. Message length: %d. Payload length: %d. Time: %f", length, payload_length, duration),
 				$conn=c,
 				$n=length,
@@ -135,14 +140,14 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 
 	if ( heartbeat_type == 2 && c$ssl$heartbleed_detected )
 		{
-			NOTICE([$note=SSL_Heartbeat_Attack_Success,
+			NOTICE([$note=Heartbleed::SSL_Heartbeat_Attack_Success,
 				$msg=fmt("An TLS heartbleed attack detected before was probably exploited. Message length: %d. Payload length: %d. Time: %f", length, payload_length, duration),
 				$conn=c,
 				$identifier=c$uid
 				]);
 		}
 
-		NOTICE([$note=SSL_Heartbeat_Before_Encryption,
+		NOTICE([$note=Heartbleed::SSL_Heartbeat_Before_Encryption,
 			$msg=fmt("Heartbeat message before encryption. Message length: %d. Payload length: %d. Type: %d. Time: %f", length, payload_length, heartbeat_type, duration),
 			$conn=c,
 			$identifier=c$uid
