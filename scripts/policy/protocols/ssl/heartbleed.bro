@@ -17,6 +17,7 @@ export {
 		## Indicates we saw many heartbeat requests without an reply. Might be an attack.
 		SSL_Heartbeat_Many_Requests,
 		SSL_Heartbeat_Scan,
+		SSL_Heartbeat_Before_Encryption,
 		SSL_Unknown_Key
 	};
 }
@@ -135,14 +136,14 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 	if ( heartbeat_type == 2 && c$ssl$heartbleed_detected )
 		{
 			NOTICE([$note=SSL_Heartbeat_Attack_Success,
-				$msg=fmt("An TLS heartbleed attack detected before was probably exploited. Transmitted payload length in first packet: %d. Time: %f", payload_length, duration),
+				$msg=fmt("An TLS heartbleed attack detected before was probably exploited. Message length: %d. Payload length: %d. Time: %f", length, payload_length, duration),
 				$conn=c,
 				$identifier=c$uid
 				]);
 		}
 
-		NOTICE([$note=SSL_Heartbeat_Scan,
-			$msg=fmt("Heartbeat message before encryption. Message length: %d. Payload length: %d. Time: %f", length, payload_length, duration),
+		NOTICE([$note=SSL_Heartbeat_Before_Encryption,
+			$msg=fmt("Heartbeat message before encryption. Message length: %d. Payload length: %d. Type: %d. Time: %f", length, payload_length, heartbeat_type, duration),
 			$conn=c,
 			$identifier=c$uid
 			]);
