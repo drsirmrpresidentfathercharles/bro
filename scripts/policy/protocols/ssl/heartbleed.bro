@@ -166,14 +166,14 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 
 	if ( c$ssl$enc_appdata_packages == 0 )
 			NOTICE([$note=SSL_Heartbeat_Scan,
-				$msg=fmt("Seeing heartbeat request in connection before ciphertext was seen. Probable attack or scan. Length: %d, is_orig: %d. Time: %f", length, is_orig, duration),
+				$msg=fmt("Seeing heartbeat request in connection before ciphertext was seen. Probable attack or scan. Length: %d, is_orig: %d. Cipher: %d. Time: %f", length, is_orig, c$ssl$cipher, duration),
 				$conn=c,
 				$n=length,
 				$identifier=fmt("%s%s", c$uid, "early")
 				]);
 	else if ( duration < 1min )
 			NOTICE([$note=SSL_Heartbeat_Scan,
-				$msg=fmt("Seeing heartbeat request in connection within first minute. Possible attack or scan. Length: %d, is_orig: %d. Time: %f", length, is_orig, duration),
+				$msg=fmt("Seeing heartbeat request in connection within first minute. Possible attack or scan. Length: %d, is_orig: %d. Cipher: %d. Time: %f", length, is_orig, c$ssl$cipher, duration),
 				$conn=c,
 				$n=length,
 				$identifier=fmt("%s%s", c$uid, "early")
@@ -181,7 +181,7 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 
 	if ( c$ssl$originator_heartbeats > c$ssl$responder_heartbeats + 3 )
 			NOTICE([$note=SSL_Heartbeat_Many_Requests,
-				$msg=fmt("Seeing more than 3 heartbeat requests without replies from server. Possible attack. Client count: %d, server count: %d. Time: %f", c$ssl$originator_heartbeats, c$ssl$responder_heartbeats, duration),
+				$msg=fmt("Seeing more than 3 heartbeat requests without replies from server. Possible attack. Client count: %d, server count: %d. Cipher: %d. Time: %f", c$ssl$originator_heartbeats, c$ssl$responder_heartbeats, c$ssl$cipher, duration),
 				$conn=c,
 				$n=(c$ssl$originator_heartbeats-c$ssl$responder_heartbeats),
 				$identifier=fmt("%s%d", c$uid, c$ssl$responder_heartbeats/1000) # re-throw every 1000 heartbeats
@@ -189,7 +189,7 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 
 	if ( c$ssl$responder_heartbeats > c$ssl$originator_heartbeats + 3 )
 			NOTICE([$note=SSL_Heartbeat_Many_Requests,
-				$msg=fmt("Server is sending more heartbleed responsed than requests were seen. Possible attack. Client count: %d, server count: %d. Time: %f", c$ssl$originator_heartbeats, c$ssl$responder_heartbeats, duration),
+				$msg=fmt("Server is sending more heartbleed responsed than requests were seen. Possible attack. Client count: %d, server count: %d. Cipher: %d. Time: %f", c$ssl$originator_heartbeats, c$ssl$responder_heartbeats, c$ssl$cipher, duration),
 				$conn=c,
 				$n=(c$ssl$originator_heartbeats-c$ssl$responder_heartbeats),
 				$identifier=fmt("%s%d", c$uid, c$ssl$responder_heartbeats/1000) # re-throw every 1000 heartbeats
@@ -197,7 +197,7 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 
 	if ( is_orig && length < 19 )
 			NOTICE([$note=SSL_Heartbeat_Odd_Length,
-				$msg=fmt("Heartbeat message smaller than minimum required length. Probable attack. Message length: %d. Time: %f", length, duration),
+				$msg=fmt("Heartbeat message smaller than minimum required length. Probable attack. Message length: %d. Cipher: %d. Time: %f", length, c$ssl$cipher, duration),
 				$conn=c,
 				$n=length,
 				$identifier=fmt("%s-weak-%d", c$uid, length)
@@ -222,7 +222,7 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 			if ( length < min_length_choice[i]$min_length )
 				{
 				NOTICE([$note=SSL_Heartbeat_Odd_Length,
-					$msg=fmt("Heartbeat message smaller than minimum required length. Probable attack. Message length: %d. Required length: %d. Cipher match: %s. Version: %d. Time: %f", length, min_length_choice[i]$min_length, min_length_choice[i]$cipher, c$ssl$version, duration),
+					$msg=fmt("Heartbeat message smaller than minimum required length. Probable attack. Message length: %d. Required length: %d. Cipher: %d. Cipher match: %s. Version: %d. Time: %f", length, min_length_choice[i]$min_length, c$ssl$cipher, min_length_choice[i]$cipher, c$ssl$version, duration),
 					$conn=c,
 					$n=length,
 					$identifier=fmt("%s-weak-cipher%d", c$uid, length)
@@ -237,7 +237,7 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 	if ( match == F )
 		{
 		NOTICE([$note=SSL_Unknown_Key,
-			$msg=fmt("Heartbeat with unknown ciphersuite, look manually. Ciphersuite: %d(%s), length: %d, Time: %f", c$ssl$cipher, cipherstring, length, duration),
+			$msg=fmt("Heartbeat with unknown ciphersuite, look manually. Ciphersuite: %d(%s). Length: %d. Time: %f", c$ssl$cipher, cipherstring, length, duration),
 			$conn=c,
 			$identifier=fmt("%s-cipher-%d", c$uid, c$ssl$cipher) # re-throw every 1000 heartbeats
 			]);
@@ -259,8 +259,8 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 		if ( c$ssl?$last_originator_heartbeat_request_size && c$ssl$last_originator_heartbeat_request_size < length )
 			{
 			NOTICE([$note=SSL_Heartbeat_Attack_Success,
-				$msg=fmt("An Encrypted TLS heartbleed attack was probably detected! First packet client record length %d, first packet server record length %d. Time: %f",
-					c$ssl$last_originator_heartbeat_request_size, length, duration),
+				$msg=fmt("An Encrypted TLS heartbleed attack was probably detected! First packet client record length %d, first packet server record length %d. Cipher: %d. Time: %f",
+					c$ssl$last_originator_heartbeat_request_size, length, c$ssl$cipher, duration),
 				$conn=c,
 				$identifier=c$uid # only throw once per connection
 				]);
