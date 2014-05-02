@@ -366,7 +366,7 @@ refine connection SSL_Conn += {
 			}
 
 		BifEvent::generate_ssl_encrypted_data(bro_analyzer(),
-			bro_analyzer()->Conn(), ${rec.content_type}, ${rec.is_orig}, ${rec.length});
+			bro_analyzer()->Conn(), ${rec.content_type}, ${rec.is_orig}, ${rec.length}, ${rec.version}, ${rec.tlsversion});
 
 		return true;
 		%}
@@ -375,7 +375,7 @@ refine connection SSL_Conn += {
 		%{
 		BifEvent::generate_ssl_heartbeat(bro_analyzer(),
 			bro_analyzer()->Conn(), ${rec.is_orig}, ${rec.length}, type, payload_length,
-			new StringVal(data.length(), (const char*) data.data()));
+			new StringVal(data.length(), (const char*) data.data()), ${rec.version}, ${rec.tlsversion});
 		return true;
 		%}
 

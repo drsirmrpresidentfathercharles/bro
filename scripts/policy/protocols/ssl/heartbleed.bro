@@ -95,7 +95,7 @@ event bro_init()
 	}
 
 
-event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type: count, payload_length: count, payload: string)
+event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type: count, payload_length: count, payload: string, version: count, tlsversion: count)
 	{
 	# in this case, we have not even seen a client hello yet. This is extremely probably just a misidentification.
 	if ( ! c?$ssl )
@@ -155,7 +155,7 @@ event ssl_heartbeat(c: connection, is_orig: bool, length: count, heartbeat_type:
 
 	}
 
-event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
+event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count, version: count, tlsversion: count)
 	{
 	if ( is_orig )
 		{
@@ -280,10 +280,10 @@ event ssl_encrypted_heartbeat(c: connection, is_orig: bool, length: count)
 		}
 	}
 
-event ssl_encrypted_data(c: connection, content_type: count, is_orig: bool, length: count)
+event ssl_encrypted_data(c: connection, content_type: count, is_orig: bool, length: count, version: count, tlsversion: count)
 	{
 	if ( content_type == HEARTBEAT )
-		event ssl_encrypted_heartbeat(c, is_orig, length);
+		event ssl_encrypted_heartbeat(c, is_orig, length, version, tlsversion);
 	else if ( content_type == APPLICATION_DATA )
 		{
 		++c$ssl$enc_appdata_packages;
